@@ -1,36 +1,18 @@
-# my-app
+# Market Simulation
 
-FIXME: description
+A simple market simulation
 
 ## Installation
 
-Download from http://example.com/FIXME.
-
-## Usage
-
-FIXME: explanation
-
-    $ java -jar my-app-0.1.0-standalone.jar [args]
-
-## Options
-
-FIXME: listing of options this app accepts.
-
-## Examples
-
-...
+Download from https://github.com/Guthur/market-simulation
 
 ### Bugs
 
 ...
 
-### Any Other Sections
-### That You Think
-### Might be Useful
-
 ## License
 
-Copyright © 2015 FIXME
+Copyright © 2015 Michael Compton
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.

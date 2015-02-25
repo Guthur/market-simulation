@@ -1,3 +1,3 @@
-# Introduction to my-app
+# Introduction to Market Simulation
 
-TODO: write [great documentation](http://jacobian.org/writing/what-to-write/)
+TODO: write some documentation
