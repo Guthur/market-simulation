@@ -1,14 +1,6 @@
 (ns market-simulation.core
   (:gen-class)
-  (:require [clojure.test.check :as tc]
-            [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :as prop]
-            [clj-time.core :as t]))
-
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+  (:require [clj-time.core :as t]))
 
 (defn make-order
   "Make an order of QUANTITY at PRICE."
@@ -158,3 +150,8 @@
     (if (= nil order)
       (make-order-book (:buy-orders order-book) order-list)
       (add-buy-order (make-order-book (:buy-orders order-book) order-list) order))))
+
+(defn -main
+  "Print out sample order book"
+  [& args]
+  (println "Market Simulation will go here"))

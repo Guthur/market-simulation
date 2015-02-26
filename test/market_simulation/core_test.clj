@@ -37,7 +37,7 @@
 quantity are correct and that the time is a DataTime object and
 timestamp is a Long.
 Also check that explicit order creation produces a valid copy of order")
-(tcct/defspec generate-order
+(tcct/defspec check-generate-order
   number-of-check-runs
   (prop/for-all [generated-price gen/int
                  generated-quantity gen/int]
@@ -57,27 +57,37 @@ order-a")
   number-of-check-runs
   (prop/for-all [order-a (make-order-generator)
                  order-b (make-order-generator)]
-                (= (order-before? order-a order-b)
-                   (not (order-before? order-b order-a)))))
+                (and (= (order-before? order-a order-b)
+                        (not (order-before? order-b order-a)))
+                     (< (- (:timestamp order-a) (:timestamp order-b))
+                        0))))
 
 (defn make-price-comparator-prop
   "Create check property to check the price ordering for
   `make-order-comparator' using PRICE-COMPARATOR. Ensuring consistency
   of the comparator function ie. when the inputs are reversed the
-  result is negated"
+  result is negated. The check that PRICE-COMPARATOR produces the same
+  result. Not checking time ordering on price equal orders"
   [price-comparator]
-  (prop/for-all [order-x (make-order-generator)
-                 order-y (make-order-generator)]
-                (= ((make-order-comparator price-comparator) order-x order-y)
-                   (not ((make-order-comparator price-comparator) order-y order-x)))))
+  (prop/for-all [orders (gen/such-that (partial apply 
+                                                (fn [order-a order-b]                               
+                                                  (not (= (:price order-a) 
+                                                          (:price order-b)))))
+                                       (gen/tuple (make-order-generator)
+                                                  (make-order-generator)))]
+                (let [[order-a order-b] orders]
+                  (and (= ((make-order-comparator price-comparator) order-a order-b)
+                          (not ((make-order-comparator price-comparator) order-b order-a)))
+                       (= (price-comparator (:price order-a) (:price order-b))
+                          ((make-order-comparator price-comparator) order-a order-b))))))
 
 (comment "Check price is greater order comparision")
-(tcct/defspec price-greater-order-comparator
+(tcct/defspec check-price-greater-order-comparator
   number-of-check-runs
   (make-price-comparator-prop >))
 
 (comment "Check price is less than order comparision")
-(tcct/defspec price-less-than-order-comparator
+(tcct/defspec check-price-less-than-order-comparator
   number-of-check-runs
   (make-price-comparator-prop <))
 
@@ -94,12 +104,12 @@ order-a")
                           (map :price (order-list-accessor order-book)))))))
 
 (comment "Check the addition of buy orders to an order-book")
-(tcct/defspec add-buy-orders
+(tcct/defspec check-add-buy-orders
   number-of-check-runs
   (make-add-orders-check-prop add-buy-order :buy-orders >))
 
 (comment "Check the addition of sell orders to an order-book")
-(tcct/defspec add-sell-orders
+(tcct/defspec check-add-sell-orders
   number-of-check-runs
   (make-add-orders-check-prop add-sell-order :sell-orders <))
 
