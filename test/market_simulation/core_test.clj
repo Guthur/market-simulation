@@ -8,32 +8,68 @@
 
 (def number-of-check-runs 1000)
 
+(defn make-order-generator
+  "Return a generator that produces an order using
+  ORDER-VALUE-GENERATOR or if no ORDER-VALUE-GENERATOR is passed then
+  return a generate for an order with random price and quantity"
+  ([]
+   (make-order-generator (gen/tuple gen/pos-int gen/pos-int)))
+  ([order-value-generator]
+   (gen/fmap (partial apply make-order) 
+             order-value-generator)))
+
+(defn make-list-of-orders-generator
+  "Return a generator that produces a non-empty list of orders"
+  [order-generator]
+  (gen/such-that not-empty (gen/vector order-generator)))
+
+(defn make-list-of-random-orders-generator
+  "Return a generator that produces a list of orders with random price and quantity"
+  []
+  (make-list-of-orders-generator (make-order-generator)))
+
+(defn make-order-book-generator
+  "Return an order book that has orders added using ADD-ORDER-FN"
+  [add-order-fn]
+  (gen/fmap (partial reduce add-order-fn (make-order-book)) (make-list-of-random-orders-generator)))
+
 (comment "Check the creation of an order. Checking that price and
-quantity are correct and that the time is a DataTime object")
+quantity are correct and that the time is a DataTime object and
+timestamp is a Long.
+Also check that explicit order creation produces a valid copy of order")
 (tcct/defspec generate-order
   number-of-check-runs
   (prop/for-all [generated-price gen/int
                  generated-quantity gen/int]
-                (let [order (make-order generated-price generated-quantity)]
+                (let [order (make-order generated-price generated-quantity)
+                      copy-of-order (make-order (:price order) (:quantity order) 
+                                                (:time order) (:timestamp order))]
                   (and (= generated-price (:price order))
                        (= generated-quantity (:quantity order))
-                       (= org.joda.time.DateTime (type (:time order)))))))
+                       (= org.joda.time.DateTime (type (:time order)))
+                       (= java.lang.Long (type (:timestamp order)))
+                       (= order copy-of-order)))))
+
+(comment "Check that `ORDER-BEFORE?' is a valid comparison function
+ie. order-a should be before order-b or order-b should be before
+order-a")
+(tcct/defspec check-order-before?
+  number-of-check-runs
+  (prop/for-all [order-a (make-order-generator)
+                 order-b (make-order-generator)]
+                (= (order-before? order-a order-b)
+                   (not (order-before? order-b order-a)))))
 
 (defn make-price-comparator-prop
   "Create check property to check the price ordering for
-  `make-order-comparator' using PRICE-COMPARATOR. Property ignores
-  when prices are equal due to non-determinism of order time which is
-  in the secondary comparision when prices are equal."
+  `make-order-comparator' using PRICE-COMPARATOR. Ensuring consistency
+  of the comparator function ie. when the inputs are reversed the
+  result is negated"
   [price-comparator]
-  (prop/for-all [price-x gen/int
-                 quantity-x gen/int
-                 price-y gen/int
-                 quantity-y gen/int]
-                (let [order-x (make-order price-x quantity-x)
-                      order-y (make-order price-y quantity-y)]
-                  (or (= ((make-order-comparator price-comparator) order-x order-y)
-                         (price-comparator price-x price-y))
-                      (= price-x price-y)))))
+  (prop/for-all [order-x (make-order-generator)
+                 order-y (make-order-generator)]
+                (= ((make-order-comparator price-comparator) order-x order-y)
+                   (not ((make-order-comparator price-comparator) order-y order-x)))))
 
 (comment "Check price is greater order comparision")
 (tcct/defspec price-greater-order-comparator
@@ -51,13 +87,10 @@ quantity are correct and that the time is a DataTime object")
   function is passed via ORDER-LIST-ACCESSOR, the price comparator is
   passed via PRICE-COMPARISON."
   [add-order-fn order-list-accessor price-comparison]
-  (prop/for-all [prices-and-quantities (gen/vector (gen/vector gen/pos-int 2))]
-                (let [order-book (reduce (fn [book order-values]
-                                           (add-order-fn book (apply make-order order-values)))
-                                         (make-order-book) 
-                                         prices-and-quantities)]
-                  (and (= (count prices-and-quantities) (count (order-list-accessor order-book)))
-                       (= (sort price-comparison (map first prices-and-quantities))
+  (prop/for-all [orders (make-list-of-random-orders-generator)]
+                (let [order-book (reduce add-order-fn (make-order-book) orders)]
+                  (and (= (count orders) (count (order-list-accessor order-book)))
+                       (= (sort price-comparison (map :price orders))
                           (map :price (order-list-accessor order-book)))))))
 
 (comment "Check the addition of buy orders to an order-book")
@@ -69,17 +102,6 @@ quantity are correct and that the time is a DataTime object")
 (tcct/defspec add-sell-orders
   number-of-check-runs
   (make-add-orders-check-prop add-sell-order :sell-orders <))
-
-(defn make-orders-generator
-  "Return a generator that produces and non-empty list of orders"
-  []
-  (gen/such-that not-empty (gen/vector (gen/fmap (partial apply make-order) 
-                                                 (gen/tuple gen/pos-int gen/pos-int)))))
-
-(defn make-order-book-generator
-  "Return an order book that has orders added using ADD-ORDER-FN"
-  [add-order-fn]
-  (gen/fmap (partial reduce add-order-fn (make-order-book)) (make-orders-generator)))
 
 (comment "Check getting the top sell price of an order book")
 (tcct/defspec check-get-top-sell-price

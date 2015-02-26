@@ -13,9 +13,9 @@
 (defn make-order 
   "Make an order of QUANTITY at PRICE."
   ([price quantity]
-   (make-order price quantity (t/now)))
-  ([price quantity time]
-   {:price price :quantity quantity :time time}))
+   (make-order price quantity (t/now) (System/nanoTime)))
+  ([price quantity time timestamp]
+   {:price price :quantity quantity :time time :timestamp timestamp}))
 
 (defn make-order-book 
   "Make an order book. If 0 arguments are passed the order book is
@@ -25,18 +25,36 @@
   ([buys sells]
    {:buy-orders buys :sell-orders sells}))
 
+(defn order-before? 
+  "Test if ORDER-A timestamp comes before ORDER-B"
+  [order-a order-b]
+  (< (- (:timestamp order-a) (:timestamp order-b)) 0))
+
 (defn make-order-comparator
   "Return a function that compares two orders using the
-  PRICE-COMPARATOR for price and `t/before?' for order time"
+  PRICE-COMPARATOR for price and order timestamp to determine eldest
+  order"
   [price-comparator]
-  (fn [x y]    
-    (or (price-comparator (:price x) (:price y))
-        (and (= (:price x) (:price y)) (t/before? (:time x) (:time y))))))
+  (fn [order-a order-b]
+    (or (price-comparator (:price order-a) (:price order-b))
+        (and (= (:price order-a) (:price order-b)) 
+             (order-before? order-a order-b)))))
 
 (defn sort-order-list 
-  "Add ORDER to ORDER-LIST and sort order using PRICE-COMPARATOR"
+  "Add ORDER to ORDER-LIST maintain list order based on PRICE-COMPARATOR"
   [order order-list price-comparator]
-  (sort (make-order-comparator price-comparator) (cons order order-list)))
+  (let [comparator (make-order-comparator price-comparator)
+        insert-order (fn insert-order [order order-list]
+                       (cond
+                         ;; Empty order list create new one
+                         (empty? order-list) (list order)
+                         ;; Order should appear before the head of
+                         ;; order list
+                         (comparator order (first order-list)) (cons order order-list)
+                         ;; Recurse through the rest of the list
+                         :else (cons (first order-list) 
+                                     (insert-order order (rest order-list)))))]
+    (insert-order order order-list)))
 
 (defn add-buy-order 
   "Add ORDER to ORDER-BOOK buy orders sorted list returning the new
@@ -108,7 +126,8 @@
       (fill-order (make-order (:price order)
                               (- (:quantity order)
                                  (:quantity top-of-book))
-                              (:time order))
+                              (:time order)
+                              (:timestamp order))
                   (rest order-list)
                   matching-price-comparator)
       ;; Price matches and ORDER quantity less than top-of-book,
@@ -118,7 +137,8 @@
       [nil (cons (make-order (:price top-of-book)
                              (- (:quantity top-of-book)
                                 (:quantity order))
-                             (:time top-of-book))
+                             (:time top-of-book)
+                             (:timestamp order))
                  (rest order-list))])))
 
 (defn match-sell-order [order order-book]
