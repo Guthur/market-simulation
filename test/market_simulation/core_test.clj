@@ -1,6 +1,6 @@
 (ns market-simulation.core-test
   (:require [clojure.test :refer :all]
-            [clojure.test.check :as tc]            
+            [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :as tcct]
@@ -15,7 +15,7 @@
   ([]
    (make-order-generator (gen/tuple gen/pos-int gen/pos-int)))
   ([order-value-generator]
-   (gen/fmap (partial apply make-order) 
+   (gen/fmap (partial apply make-order)
              order-value-generator)))
 
 (defn make-list-of-orders-generator
@@ -42,7 +42,7 @@ Also check that explicit order creation produces a valid copy of order")
   (prop/for-all [generated-price gen/int
                  generated-quantity gen/int]
                 (let [order (make-order generated-price generated-quantity)
-                      copy-of-order (make-order (:price order) (:quantity order) 
+                      copy-of-order (make-order (:price order) (:quantity order)
                                                 (:time order) (:timestamp order))]
                   (and (= generated-price (:price order))
                        (= generated-quantity (:quantity order))
@@ -81,7 +81,7 @@ order-a")
   number-of-check-runs
   (make-price-comparator-prop <))
 
-(defn make-add-orders-check-prop 
+(defn make-add-orders-check-prop
   "Create a check property for adding orders. The function to add the
   particular order type is passed via ADD-ORDER-FN. The order accessor
   function is passed via ORDER-LIST-ACCESSOR, the price comparator is

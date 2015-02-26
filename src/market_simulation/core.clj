@@ -10,14 +10,14 @@
   [& args]
   (println "Hello, World!"))
 
-(defn make-order 
+(defn make-order
   "Make an order of QUANTITY at PRICE."
   ([price quantity]
    (make-order price quantity (t/now) (System/nanoTime)))
   ([price quantity time timestamp]
    {:price price :quantity quantity :time time :timestamp timestamp}))
 
-(defn make-order-book 
+(defn make-order-book
   "Make an order book. If 0 arguments are passed the order book is
   empty. Buy and sell orders can be passed via BUYS and SELLS
   respectively"
@@ -25,7 +25,7 @@
   ([buys sells]
    {:buy-orders buys :sell-orders sells}))
 
-(defn order-before? 
+(defn order-before?
   "Test if ORDER-A timestamp comes before ORDER-B"
   [order-a order-b]
   (< (- (:timestamp order-a) (:timestamp order-b)) 0))
@@ -37,10 +37,10 @@
   [price-comparator]
   (fn [order-a order-b]
     (or (price-comparator (:price order-a) (:price order-b))
-        (and (= (:price order-a) (:price order-b)) 
+        (and (= (:price order-a) (:price order-b))
              (order-before? order-a order-b)))))
 
-(defn sort-order-list 
+(defn sort-order-list
   "Add ORDER to ORDER-LIST maintain list order based on PRICE-COMPARATOR"
   [order order-list price-comparator]
   (let [comparator (make-order-comparator price-comparator)
@@ -52,11 +52,11 @@
                          ;; order list
                          (comparator order (first order-list)) (cons order order-list)
                          ;; Recurse through the rest of the list
-                         :else (cons (first order-list) 
+                         :else (cons (first order-list)
                                      (insert-order order (rest order-list)))))]
     (insert-order order order-list)))
 
-(defn add-buy-order 
+(defn add-buy-order
   "Add ORDER to ORDER-BOOK buy orders sorted list returning the new
   order book. The order list is sorted in descending price order and
   most recent"
@@ -64,7 +64,7 @@
   (make-order-book (sort-order-list order (:buy-orders order-book) >)
                    (:sell-orders order-book)))
 
-(defn add-sell-order 
+(defn add-sell-order
   "Add ORDER to ORDER-BOOK sell orders sorted list returning the new
   order book. The order list is sorted in ascending price order and
   most recent"
@@ -72,12 +72,12 @@
   (make-order-book (:buy-orders order-book)
                    (sort-order-list order (:sell-orders order-book) <)))
 
-(defn get-order-list-top-price 
+(defn get-order-list-top-price
   "Get the price of the top order in ORDER-LIST"
   [order-list]
   (:price (first order-list)))
 
-(defn get-top-sell-price 
+(defn get-top-sell-price
   "Get top sell price in ORDER-BOOK"
   [order-book]
   (get-order-list-top-price (:sell-orders order-book)))
@@ -97,7 +97,7 @@
   [order-book]
   (get-order-list-quantity (:sell-orders order-book)))
 
-(defn get-buy-list-quantity 
+(defn get-buy-list-quantity
   "Get the quantity sum of all the buy orders in ORDER-BOOK"
   [order-book]
   (get-order-list-quantity (:buy-orders order-book)))
