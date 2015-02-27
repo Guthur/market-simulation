@@ -141,6 +141,6 @@ order-a")
 (tcct/defspec check-get-sell-list-quantity
   number-of-check-runs
   (prop/for-all [order-book (make-order-book-generator add-sell-order)]
-                (let [total-quantity (reduce + 0 (map :quantity (:sell-orders order-book)))]
+                (let [total-quantity (reduce + (map :quantity (:sell-orders order-book)))]
                   (= (get-sell-list-quantity order-book)
                      total-quantity))))
