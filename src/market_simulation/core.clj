@@ -1,6 +1,7 @@
 (ns market-simulation.core
   (:gen-class)
-  (:require [clj-time.core :as t]))
+  (:require [clojure.test.check.generators :as gen]
+            [clj-time.core :as t]))
 
 (defn make-order
   "Make an order of QUANTITY at PRICE."
@@ -53,16 +54,20 @@
   order book. The order list is sorted in descending price order and
   most recent"
   [order-book order]
-  (make-order-book (sort-order-list order (:buy-orders order-book) >)
-                   (:sell-orders order-book)))
+  (if (not (zero? (:quantity order)))
+    (make-order-book (sort-order-list order (:buy-orders order-book) >)
+                     (:sell-orders order-book))
+    order-book))
 
 (defn add-sell-order
   "Add ORDER to ORDER-BOOK sell orders sorted list returning the new
   order book. The order list is sorted in ascending price order and
   most recent"
   [order-book order]
-  (make-order-book (:buy-orders order-book)
-                   (sort-order-list order (:sell-orders order-book) <)))
+  (if (not (zero? (:quantity order)))
+    (make-order-book (:buy-orders order-book)
+                     (sort-order-list order (:sell-orders order-book) <))
+    order-book))
 
 (defn get-order-list-top-price
   "Get the price of the top order in ORDER-LIST"
@@ -98,59 +103,55 @@
   "Recurse through ORDER-LIST searching for matching prices against
   the ORDER using MATCHING-PRICE-COMPARATOR. Returning remaining ORDER
   and ORDER-LIST"
-  (loop [rec-order order 
-         rec-order-list order-list]
-    (let [top-of-book (first order-list)]
-      (cond
-        ;; Order has zero quantity return remaining ORDER-LIST
-        (zero? (:quantity order))
-        [nil order-list]
-        ;; Empty ORDER-LIST return ORDER and ORDER-LIST
-        (empty? order-list)
-        [order order-list]
-        ;; Price can not close on any existing orders in ORDER-LIST
-        ;; return ORDER-LIST and ORDER
-        (not (matching-price-comparator (:price order) (:price top-of-book)))
-        [order order-list]
-        ;; Price matches. If quantity of ORDER is greater or equal to
-        ;; top-of-book then remove top-of-book quantity from ORDER and
-        ;; recursively call `FILL-ORDER with the remaining ORDER
-        ;; quantity and remaining ORDER-LIST'
-        (>= (:quantity order) (:quantity top-of-book))
-        (recur (make-order (:price order)
-                           (- (:quantity order)
-                              (:quantity top-of-book))
-                           (:time order)
-                           (:timestamp order))
-               (rest order-list))
-        ;; Price matches and ORDER quantity less than top-of-book,
-        ;; remove ORDER quantity from top-of-book quantity returning new
-        ;; ORDER-LIST
-        :else
-        [nil (cons (make-order (:price top-of-book)
-                               (- (:quantity top-of-book)
-                                  (:quantity order))
-                               (:time top-of-book)
-                               (:timestamp order))
-                   (rest order-list))]))))
+  (let [top-of-book (first order-list)]
+    (cond
+      ;; Order has zero quantity return remaining ORDER-LIST
+      (zero? (:quantity order))
+      [(make-order (:price order) 0) order-list]
+      ;; Empty ORDER-LIST return ORDER and ORDER-LIST
+      (empty? order-list)
+      [order order-list]
+      ;; Price can not close on any existing orders in ORDER-LIST
+      ;; return ORDER-LIST and ORDER
+      (not (matching-price-comparator (:price order) (:price top-of-book)))
+      [order order-list]
+      ;; Price matches. If quantity of ORDER is greater or equal to
+      ;; top-of-book then remove top-of-book quantity from ORDER and
+      ;; recursively call `FILL-ORDER with the remaining ORDER
+      ;; quantity and remaining ORDER-LIST'
+      (>= (:quantity order) (:quantity top-of-book))
+      (fill-order (make-order (:price order)
+                              (- (:quantity order)
+                                 (:quantity top-of-book))
+                              (:time order)
+                              (:timestamp order))
+                  (rest order-list)
+                  matching-price-comparator)
+      ;; Price matches and ORDER quantity less than top-of-book,
+      ;; remove ORDER quantity from top-of-book quantity returning new
+      ;; ORDER-LIST
+      :else
+      [(make-order (:price order) 0)
+       (cons (make-order (:price top-of-book)
+                         (- (:quantity top-of-book)
+                            (:quantity order))
+                         (:time top-of-book)
+                         (:timestamp order))
+             (rest order-list))])))
 
 (defn match-sell-order [order order-book]
   "Tries to match sell ORDER against any buy orders in ORDER-BOOK when
   the sell price is less than or equal to the buy price. Any
   unfulfilled sell ORDER is added to the ORDER-BOOK"
   (let [[order order-list] (fill-order order (:buy-orders order-book) <=)]
-    (if (= nil order)
-      (make-order-book order-list (:sell-orders order-book))
-      (add-sell-order (make-order-book order-list (:sell-orders order-book)) order))))
+    (add-sell-order (make-order-book order-list (:sell-orders order-book)) order)))
 
 (defn match-buy-order [order order-book]
   "Tries to match buy ORDER against any sell orders in ORDER-BOOK when
   the buy price is greater than or equal to the sell price. Any
   unfulfilled buy ORDER is added to the ORDER-BOOK"
   (let [[order order-list] (fill-order order (:sell-orders order-book) >=)]
-    (if (= nil order)
-      (make-order-book (:buy-orders order-book) order-list)
-      (add-buy-order (make-order-book (:buy-orders order-book) order-list) order))))
+    (add-buy-order (make-order-book (:buy-orders order-book) order-list) order)))
 
 (defn -main
   "Print out sample order book"
