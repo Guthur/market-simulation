@@ -4,7 +4,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :as tcct]
-            [market-simulation.core :refer :all]))
+            [market-simulation.core :refer :all :import #'make-order-generator]))
 
 (def number-of-check-runs 1000)
 
@@ -54,8 +54,12 @@ ie. order-a should be before order-b or order-b should be before
 order-a")
 (tcct/defspec check-order-before?
   number-of-check-runs
-  (prop/for-all [order-a (make-order-generator)
-                 order-b (make-order-generator)]
+  (prop/for-all [[order-a order-b] (gen/such-that (comp not
+                                                        (partial apply =)
+                                                        (partial map :timestamp))
+                                                  (gen/tuple (make-order-generator)
+                                                             (make-order-generator))
+                                                  30)]
                 (and (= (order-before? order-a order-b)
                         (not (order-before? order-b order-a)))
                      (< (- (:timestamp order-a) (:timestamp order-b))
@@ -69,17 +73,17 @@ order-a")
   produces the same result.  Not checking time ordering on price equal
   orders"
   [price-comparator]
-  (prop/for-all [orders (gen/such-that (partial apply
-                                                (fn [order-a order-b]
-                                                  (not (= (:price order-a)
-                                                          (:price order-b)))))
+  (prop/for-all [orders (gen/such-that (comp not
+                                             (partial apply =)
+                                             (partial map :price))
                                        (gen/tuple (make-order-generator)
                                                   (make-order-generator)))]
-                (let [[order-a order-b] orders]
-                  (and (= ((make-order-comparator price-comparator) order-a order-b)
-                          (not ((make-order-comparator price-comparator) order-b order-a)))
+                (let [[order-a order-b] orders
+                      order-comparator (#'market-simulation.core/make-order-comparator price-comparator)]
+                  (and (= (order-comparator order-a order-b)
+                          (not (order-comparator order-b order-a)))
                        (= (price-comparator (:price order-a) (:price order-b))
-                          ((make-order-comparator price-comparator) order-a order-b))))))
+                          (order-comparator order-a order-b))))))
 
 (comment "Check price is greater order comparision")
 (tcct/defspec check-price-greater-order-comparator
@@ -100,10 +104,7 @@ order-a")
   [add-order-fn order-list-accessor price-comparison]
   (prop/for-all [orders (make-order-list-generator)]
                 (let [order-book (reduce add-order-fn (make-order-book) orders)]
-                  (and (= (reduce (fn [accum order]
-                                    (if (zero? (:quantity order))
-                                      accum
-                                      (inc accum)))
+                  (and (= (reduce #(if (zero? (:quantity %2)) %1 (inc %1))
                                   0
                                   orders)
                           (count (order-list-accessor order-book)))
@@ -189,10 +190,7 @@ order-a")
                                   (make-order-generator orders-to-match-prices gen/s-pos-int))]
                 (let [order-book-quantity (reduce + (map :quantity (existing-orders-accessor order-book)))
                       orders-to-match-quantity (reduce + (map :quantity orders-to-match))]
-                  (let [order-book (reduce (fn [order-book order]
-                                             (order-match-fn order order-book))
-                                           order-book
-                                           orders-to-match)]
+                  (let [order-book (reduce order-match-fn order-book orders-to-match)]
                     (cond
                       ;; Starting order-book-quantity was less than
                       ;; orders-to-match-quantity. Check that
@@ -238,9 +236,9 @@ rules and removing the correct quantity from orders in the order book")
   number-of-check-runs
   (prop/for-all [buy-order (make-order-generator gen/s-pos-int gen/s-pos-int)
                  sell-order (make-order-generator gen/s-pos-int gen/s-pos-int)]
-                (let [order-book (match-sell-order sell-order
-                                                   (match-buy-order buy-order
-                                                                    (make-order-book)))
+                (let [order-book (match-sell-order (match-buy-order (make-order-book)
+                                                                    buy-order)
+                                                   sell-order)
                       sell-price (:price sell-order)
                       buy-price (:price buy-order)
                       sell-quantity (:quantity sell-order)
