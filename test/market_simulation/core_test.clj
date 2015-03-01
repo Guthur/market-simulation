@@ -231,3 +231,44 @@ that are priced to allow execution")
   (make-order-matching-prop add-sell-order match-buy-order
                             :buy-orders :sell-orders
                             (gen/choose 5 10) (gen/choose 0 5)))
+
+(comment "Check that order execution is obeying the price matching
+rules and removing the correct quantity from orders in the order book")
+(tcct/defspec check-order-execution
+  number-of-check-runs
+  (prop/for-all [buy-order (make-order-generator gen/s-pos-int gen/s-pos-int)
+                 sell-order (make-order-generator gen/s-pos-int gen/s-pos-int)]
+                (let [order-book (match-sell-order sell-order
+                                                   (match-buy-order buy-order
+                                                                    (make-order-book)))
+                      sell-price (:price sell-order)
+                      buy-price (:price buy-order)
+                      sell-quantity (:quantity sell-order)
+                      buy-quantity (:quantity buy-order)
+                      remaining-sell-quantity (get-sell-list-quantity order-book)
+                      remaining-buy-quantity (get-buy-list-quantity order-book)]
+                  (or
+                   ;; If buy price is equal to or greater an order
+                   ;; execution should occur.
+                   (and (>= buy-price sell-price)
+                        (or
+                         ;; Buy quantity is greater than sell.  There
+                         ;; should be a remain buy order minus the
+                         ;; sell quantity.
+                         (and (> buy-quantity sell-quantity)
+                              (= remaining-buy-quantity
+                                 (- buy-quantity sell-quantity)))
+                         ;; Sell quantity is greater than buy.  There
+                         ;; should be a remain sell order minus the
+                         ;; buy quantity.
+                         (and (> sell-quantity buy-quantity)
+                              (= remaining-sell-quantity
+                                 (- sell-quantity buy-quantity)))
+                         ;; Buy and sell quantities were equal, there
+                         ;; should be no orders in the book.
+                         (and (empty? (:sell-orders order-book))
+                              (empty? (:buy-orders order-book)))))
+                   ;; Buy price is less than sell, no execution should
+                   ;; occur.
+                   (and (= remaining-sell-quantity sell-quantity)
+                        (= remaining-buy-quantity buy-quantity))))))

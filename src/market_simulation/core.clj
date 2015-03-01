@@ -120,13 +120,13 @@
       ;; recursively call `FILL-ORDER with the remaining ORDER
       ;; quantity and remaining ORDER-LIST'
       (>= (:quantity order) (:quantity top-of-book))
-      (fill-order (make-order (:price order)
-                              (- (:quantity order)
-                                 (:quantity top-of-book))
-                              (:time order)
-                              (:timestamp order))
-                  (rest order-list)
-                  matching-price-comparator)
+      (recur (make-order (:price order)
+                         (- (:quantity order)
+                            (:quantity top-of-book))
+                         (:time order)
+                         (:timestamp order))
+             (rest order-list)
+             matching-price-comparator)
       ;; Price matches and ORDER quantity less than top-of-book,
       ;; remove ORDER quantity from top-of-book quantity returning new
       ;; ORDER-LIST
