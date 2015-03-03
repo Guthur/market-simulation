@@ -36,7 +36,7 @@
 (defn- sort-order-list
   "Add ORDER to ORDER-LIST maintain list order based on PRICE-COMPARATOR"
   [order order-list price-comparator]
-  (sort (make-order-comparator price-comparator) (cons order order-list)))
+  (sort (make-order-comparator price-comparator) (conj order-list order)))
 
 (defn add-buy-order
   "Add ORDER to ORDER-BOOK buy orders sorted list returning the new
@@ -119,12 +119,12 @@
       ;; ORDER-LIST
       :else
       [(make-order (:price order) 0)
-       (cons (make-order (:price top-of-book)
+       (conj (rest order-list)
+             (make-order (:price top-of-book)
                          (- (:quantity top-of-book)
                             (:quantity order))
                          (:time top-of-book)
-                         (:timestamp order))
-             (rest order-list))
+                         (:timestamp order)))
        (:price order)])))
 
 (defn match-sell-order
